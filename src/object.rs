@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{path::Path, cell::RefCell};
 use math::{Vec3, Vec2, Transform};
 
 use crate::texture::Texture;
@@ -13,7 +13,8 @@ pub struct Vertex {
 pub struct Object<'s> {
     pub vertices: Vec<[Vertex;3]>,
     pub transform: Transform,
-    pub texture: &'s Texture
+    pub texture: &'s Texture,
+    pub shadow_map: RefCell<Texture>
 }
 impl<'s> Object<'s> {
     pub fn load(
@@ -80,10 +81,30 @@ impl<'s> Object<'s> {
             ])
             .collect();
             
+        let shadow_map = Texture::new(texture.size.x as usize / 5, texture.size.y as usize / 5, 0.5.into()).into();
+            
         Self {
             vertices,
             texture,
+            shadow_map,
             transform
+        }
+    }
+    pub fn update_shadow_map(&self, objects: &[Self]) {
+        let mut shadow_map = self.shadow_map.borrow_mut();
+        let width = shadow_map.size.y as usize;
+        let height = shadow_map.size.x as usize;
+        let mut x;
+        let mut y;
+        for object in objects.iter() {
+            y = 0;
+            while y < height {
+                x = 0;
+                while x < width {
+                    x += 1
+                }
+                y += 1
+            }
         }
     }
 }

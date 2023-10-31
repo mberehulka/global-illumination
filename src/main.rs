@@ -7,8 +7,8 @@ mod engine;
 mod object;
 mod camera;
 mod dir_light;
-mod color;
 mod texture;
+mod render;
 
 fn main() {
     let mut event_loop = EventLoop::new();
