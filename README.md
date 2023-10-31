@@ -3,7 +3,7 @@ Ray traced shadows algorithm in Rust
 
 Work in progress...
 
-Study case of calculating shadows by testing collisions between the ray starting from texture pixel to the light, passing through vertices in the scene.
+Study case of calculating shadows by testing collisions between a ray starting from the texture pixel to the light, passing through all vertices in the scene.
 
 It's single-threaded and runs in the CPU, for simplicity's sake.
 
