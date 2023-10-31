@@ -1,6 +1,6 @@
 use std::f32::consts::PI;
 
-use math::{Vec3, Mat4x4, Vec2};
+use math::{Vec3, Mat4x4, Vec2, deg_to_rad};
 
 pub struct Camera {
     pub translation: Vec3,
@@ -13,14 +13,14 @@ impl Camera {
     pub fn new() -> Self {
         Self {
             translation: Vec3::new(0., 0., 0.),
-            rotation: Vec2::new(0., 0.),
-            distance: 4.,
+            rotation: Vec2::new(deg_to_rad(-20.), 0.),
+            distance: 10.,
             position: Default::default(),
             mat: Default::default()
         }
     }
     pub fn update(&mut self, width: u32, height: u32) {
-        self.rotation.x = self.rotation.x.min(PI / 3.).max(-PI / 3.);
+        self.rotation.x = self.rotation.x.min(PI / 4.).max(-PI / 4.);
         self.position = Vec3::new(0., 0., self.distance)
             .rotate_x(self.rotation.x)
             .rotate_y(self.rotation.y)

@@ -65,11 +65,12 @@ impl Engine {
         self.rotate_objects();
         
         let mut pixels = self.pixels.frame().to_vec();
+        let mut zbuffer = vec![f32::MAX;pixels.len()];
         self.clear(&mut pixels);
         self.camera.update(self.width, self.height);
         
         for object in self.objects.iter() {
-            self.draw(&mut pixels, object)
+            self.draw(&mut pixels, &mut zbuffer, object)
         }
 
         self.pixels.frame_mut().copy_from_slice(&pixels);
@@ -78,6 +79,7 @@ impl Engine {
     pub fn draw(
         &self,
         pixels: &mut [u8],
+        zbuffer: &mut [f32],
         object: &Object
     ) {
         for [a, b, c] in object.vertices.iter() {
@@ -92,10 +94,11 @@ impl Engine {
             
             self.project_triangle(
                 pixels,
+                zbuffer,
                 self.camera.mat * ap,
                 self.camera.mat * bp,
                 self.camera.mat * cp,
-                color::from_f32(1. - dp * 0.5),
+                color::from_f32(1. - dp * 0.75),
                 // [255;3]
             )
         }
@@ -104,41 +107,45 @@ impl Engine {
     pub fn project_triangle(
         &self,
         pixels: &mut [u8],
+        zbuffer: &mut [f32],
         a: Vec3,
         b: Vec3,
         c: Vec3,
         color: [u8;3]
     ) {
         if a.z <= 0. || b.z <= 0. || c.z <= 0. { return }
-        self.render_triangle(
+        self.raster_triangle(
             pixels,
+            zbuffer,
             ((a.x + 1.) * 0.5 * self.width as f32) as i32,
             ((a.y + 1.) * 0.5 * self.height as f32) as i32,
+            a.z,
             ((b.x + 1.) * 0.5 * self.width as f32) as i32,
             ((b.y + 1.) * 0.5 * self.height as f32) as i32,
+            b.z,
             ((c.x + 1.) * 0.5 * self.width as f32) as i32,
             ((c.y + 1.) * 0.5 * self.height as f32) as i32,
+            c.z,
             color
         )
     }
     #[inline(always)]
-    pub fn render_triangle(
+    pub fn raster_triangle(
         &self,
         pixels: &mut [u8],
-        ax: i32, ay: i32,
-        bx: i32, by: i32,
-        cx: i32, cy: i32,
+        zbuffer: &mut [f32],
+        ax: i32, ay: i32, az: f32,
+        bx: i32, by: i32, bz: f32,
+        cx: i32, cy: i32, cz: f32,
         color: [u8;3]
     ) {
         let max_width = self.width as i32 - 1;
         let max_height = self.height as i32 - 1;
+        
         let minx = max_width.min(ax).max(0).min(bx).max(0).min(cx).max(0);
         let mut miny = max_height.min(ay).max(0).min(by).max(0).min(cy).max(0);
         let maxx = 0.max(ax).min(max_width).max(bx).min(max_width).max(cx).min(max_width);
         let maxy = 0.max(ay).min(max_height).max(by).min(max_height).max(cy).min(max_height);
-
-        let line_width = (self.width as i32 - maxx - 1) as usize * 4;
-        let line_offset = minx as usize * 4;
 
         let l1x = cx as f32 - ax as f32;
         let l1y = bx as f32 - ax as f32;
@@ -147,11 +154,16 @@ impl Engine {
         let l2y = by as f32 - ay as f32;
         let mut l2z;
         
+        let mut ux; let mut uy;
         let uz = (l1x * l2y) - (l1y * l2x);
         if uz.abs() < 1. { return }
 
         let mut i = (miny * self.width as i32) as usize * 4;
         let mut x;
+        let line_width = (self.width as i32 - maxx - 1) as usize * 4;
+        let line_offset = minx as usize * 4;
+        let mut btx; let mut bty; let mut btz;
+        let mut z;
         
         while miny <= maxy {
             l2z = ay as f32 - miny as f32;
@@ -159,16 +171,23 @@ impl Engine {
             i += line_offset;
             while x <= maxx {
                 l1z = ax as f32 - x as f32;
-                let ux = (l1y * l2z) - (l1z * l2y);
-                let uy = (l1z * l2x) - (l1x * l2z);
-                if 1. - (ux + uy) / uz < 0. || uy / uz < 0. || ux / uz < 0. {
+                ux = (l1y * l2z) - (l1z * l2y);
+                uy = (l1z * l2x) - (l1x * l2z);
+                btx = 1.-(ux+uy)/uz;
+                bty = uy/uz;
+                btz = ux/uz;
+                if btx < 0. || bty < 0. || btz < 0. {
                     x += 1;
                     i += 4;
                     continue
                 }
-                pixels[i    ] = color[0];
-                pixels[i + 1] = color[2];
-                pixels[i + 2] = color[1];
+                z = (az * btx) + (bz * bty) + (cz * btz);
+                if zbuffer[i] >= z {
+                    pixels[i    ] = color[0];
+                    pixels[i + 1] = color[2];
+                    pixels[i + 2] = color[1];
+                    zbuffer[i] = z;
+                }
                 x += 1;
                 i += 4
             }

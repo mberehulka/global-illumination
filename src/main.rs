@@ -1,6 +1,6 @@
 use std::time::Instant;
 use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent, KeyboardInput, VirtualKeyCode, ElementState}};
-use math::{Transform, Vec3};
+use math::Transform;
 
 mod engine;
 mod object;
@@ -12,11 +12,10 @@ fn main() {
     let event_loop = EventLoop::new();
     let mut engine = engine::Engine::new(&event_loop);
 
-    engine.camera.position = Vec3::new(0., 5., 50.);
-    
-    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(0., 0., 0.)));
-    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(0., 3., 0.)));
+    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(3., 0., 0.)));
+    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(0., -3., 0.)));
     engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(0., 0., 3.)));
+    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_scale(5., 0.01, 5.).with_translation(0., 1.5, 0.)));
     
     event_loop.run(move |e, _, control_flow| {
         match e {
