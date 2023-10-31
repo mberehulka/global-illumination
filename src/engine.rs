@@ -1,6 +1,6 @@
 use winit::{event_loop::EventLoop, window::{WindowBuilder, Window}, dpi::PhysicalSize};
 use pixels::{Pixels, SurfaceTexture};
-use math::{Vec3, Quaternion, Vec2};
+use math::{Vec3, Quaternion, Vec2, Vec4};
 
 use crate::{object::Object, camera::Camera, dir_light::DirectionalLight, color, texture::Texture};
 
@@ -96,9 +96,9 @@ impl<'s> Engine<'s> {
             self.project_triangle(
                 pixels,
                 zbuffer,
-                self.camera.mat * ap,
-                self.camera.mat * bp,
-                self.camera.mat * cp,
+                self.camera.mat * ap.extend(1.),
+                self.camera.mat * bp.extend(1.),
+                self.camera.mat * cp.extend(1.),
                 a.uv, b.uv, c.uv,
                 &object.texture,
                 color::from_f32(1. - dp * 0.75),
@@ -111,24 +111,29 @@ impl<'s> Engine<'s> {
         &self,
         pixels: &mut [u8],
         zbuffer: &mut [f32],
-        a: Vec3, b: Vec3, c: Vec3,
-        auv: Vec2, buv: Vec2, cuv: Vec2,
+        mut a: Vec4, mut b: Vec4, mut c: Vec4,
+        mut auv: Vec2, mut buv: Vec2, mut cuv: Vec2,
         texture: &Texture,
         color: [u8;3]
     ) {
-        if a.z <= 0. || b.z <= 0. || c.z <= 0. { return }
+        a.x /= a.w;  a.y /= a.w;  a.z /= a.w;
+        b.x /= b.w;  b.y /= b.w;  b.z /= b.w;
+        c.x /= c.w;  c.y /= c.w;  c.z /= c.w;
+        auv /= a.w;  buv /= b.w;  cuv /= c.w;
+        a.w = 1./a.w;  b.w = 1./b.w;  c.w = 1./c.w;
+        if a.w <= 0. || b.w <= 0. || c.w <= 0. { return }
         self.raster_triangle(
             pixels,
             zbuffer,
             ((a.x + 1.) * 0.5 * self.width as f32) as i32,
             ((a.y + 1.) * 0.5 * self.height as f32) as i32,
-            a.z,
+            a.z, a.w,
             ((b.x + 1.) * 0.5 * self.width as f32) as i32,
             ((b.y + 1.) * 0.5 * self.height as f32) as i32,
-            b.z,
+            b.z, b.w,
             ((c.x + 1.) * 0.5 * self.width as f32) as i32,
             ((c.y + 1.) * 0.5 * self.height as f32) as i32,
-            c.z,
+            c.z, c.w,
             auv, buv, cuv,
             texture,
             color
@@ -139,9 +144,9 @@ impl<'s> Engine<'s> {
         &self,
         pixels: &mut [u8],
         zbuffer: &mut [f32],
-        ax: i32, ay: i32, az: f32,
-        bx: i32, by: i32, bz: f32,
-        cx: i32, cy: i32, cz: f32,
+        ax: i32, ay: i32, az: f32, aw: f32,
+        bx: i32, by: i32, bz: f32, bw: f32,
+        cx: i32, cy: i32, cz: f32, cw: f32,
         auv: Vec2, buv: Vec2, cuv: Vec2,
         texture: &Texture,
         color: [u8;3]
@@ -195,10 +200,11 @@ impl<'s> Engine<'s> {
 
                 z = (az * btx) + (bz * bty) + (cz * btz);
                 if zbuffer[_i] >= z {
+                    let w = (aw * btx) + (bw * bty) + (cw * btz);
                     let uv = Vec2::new(
                         (auv.x * btx) + (buv.x * bty) + (cuv.x * btz),
                         (auv.y * btx) + (buv.y * bty) + (cuv.y * btz)
-                    ) * texture.size;
+                    ) * texture.size / w;
                     let tex_color = texture.pixels[uv.y as usize][uv.x as usize];
                     pixels[i    ] = tex_color.0;
                     pixels[i + 1] = tex_color.1;
