@@ -1,6 +1,7 @@
 use std::path::Path;
-
 use math::{Vec3, Vec2, Transform};
+
+use crate::texture::Texture;
 
 #[derive(Clone, Copy)]
 pub struct Vertex {
@@ -9,12 +10,17 @@ pub struct Vertex {
     pub uv: Vec2
 }
 
-pub struct Object {
+pub struct Object<'s> {
     pub vertices: Vec<[Vertex;3]>,
-    pub transform: Transform
+    pub transform: Transform,
+    pub texture: &'s Texture
 }
-impl Object {
-    pub fn load(path: impl AsRef<Path>, transform: Transform) -> Self {
+impl<'s> Object<'s> {
+    pub fn load(
+        path: impl AsRef<Path>,
+        texture: &'s Texture,
+        transform: Transform
+    ) -> Self {
         let (gltf, buffers, _) = gltf::import(path).unwrap();
         let meshes = gltf.meshes().collect::<Vec<_>>();
         let primitives = meshes.iter().map(|mesh| mesh.primitives() ).flatten().collect::<Vec<_>>();
@@ -76,6 +82,7 @@ impl Object {
             
         Self {
             vertices,
+            texture,
             transform
         }
     }

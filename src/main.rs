@@ -1,5 +1,6 @@
 use std::time::Instant;
 use winit::{event_loop::{EventLoop, ControlFlow}, event::{Event, WindowEvent, KeyboardInput, VirtualKeyCode, ElementState}};
+use winit::platform::run_return::EventLoopExtRunReturn;
 use math::Transform;
 
 mod engine;
@@ -7,17 +8,21 @@ mod object;
 mod camera;
 mod dir_light;
 mod color;
+mod texture;
 
 fn main() {
-    let event_loop = EventLoop::new();
+    let mut event_loop = EventLoop::new();
     let mut engine = engine::Engine::new(&event_loop);
 
-    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(3., 0., 0.)));
-    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(0., -3., 0.)));
-    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_translation(0., 0., 3.)));
-    engine.objects.push(object::Object::load("assets/cube.gltf", Transform::from_scale(5., 0.01, 5.).with_translation(0., 1.5, 0.)));
+    let grass = texture::Texture::load("assets/grass.jpg");
+    let terraccota = texture::Texture::load("assets/terracotta.jpg");
     
-    event_loop.run(move |e, _, control_flow| {
+    engine.objects.push(object::Object::load("assets/cube.gltf", &terraccota, Transform::from_translation(3., 0., 0.)));
+    engine.objects.push(object::Object::load("assets/cube.gltf", &terraccota, Transform::from_translation(0., -3., 0.)));
+    engine.objects.push(object::Object::load("assets/cube.gltf", &terraccota, Transform::from_translation(0., 0., 3.)));
+    engine.objects.push(object::Object::load("assets/cube.gltf", &grass, Transform::from_scale(5., 0.01, 5.).with_translation(0., 1.5, 0.)));
+    
+    event_loop.run_return(move |e, _, control_flow| {
         match e {
             Event::MainEventsCleared => engine.window.request_redraw(),
             Event::RedrawRequested(_) => {
@@ -47,5 +52,5 @@ fn main() {
             }
             _ => {}
         }
-    })
+    });
 }

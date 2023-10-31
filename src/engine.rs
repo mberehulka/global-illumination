@@ -1,10 +1,10 @@
 use winit::{event_loop::EventLoop, window::{WindowBuilder, Window}, dpi::PhysicalSize};
 use pixels::{Pixels, SurfaceTexture};
-use math::{Vec3, Quaternion};
+use math::{Vec3, Quaternion, Vec2};
 
-use crate::{object::Object, camera::Camera, dir_light::DirectionalLight, color};
+use crate::{object::Object, camera::Camera, dir_light::DirectionalLight, color, texture::Texture};
 
-pub struct Engine {
+pub struct Engine<'s> {
     pub buff_w4: i32,
 
     pub width: u32,
@@ -12,12 +12,12 @@ pub struct Engine {
     pub pixels: Pixels,
     
     pub window: Window,
-    pub objects: Vec<Object>,
+    pub objects: Vec<Object<'s>>,
     pub camera: Camera,
     pub dir_light: DirectionalLight
 }
 
-impl Engine {
+impl<'s> Engine<'s> {
     pub fn new(event_loop: &EventLoop<()>) -> Self {
         let window = WindowBuilder::new()
             .with_resizable(false)
@@ -65,9 +65,10 @@ impl Engine {
         self.rotate_objects();
         
         let mut pixels = self.pixels.frame().to_vec();
-        let mut zbuffer = vec![f32::MAX;pixels.len()];
         self.clear(&mut pixels);
         self.camera.update(self.width, self.height);
+        
+        let mut zbuffer = vec![f32::MAX;(self.width * self.height)as usize];
         
         for object in self.objects.iter() {
             self.draw(&mut pixels, &mut zbuffer, object)
@@ -98,6 +99,8 @@ impl Engine {
                 self.camera.mat * ap,
                 self.camera.mat * bp,
                 self.camera.mat * cp,
+                a.uv, b.uv, c.uv,
+                &object.texture,
                 color::from_f32(1. - dp * 0.75),
                 // [255;3]
             )
@@ -108,9 +111,9 @@ impl Engine {
         &self,
         pixels: &mut [u8],
         zbuffer: &mut [f32],
-        a: Vec3,
-        b: Vec3,
-        c: Vec3,
+        a: Vec3, b: Vec3, c: Vec3,
+        auv: Vec2, buv: Vec2, cuv: Vec2,
+        texture: &Texture,
         color: [u8;3]
     ) {
         if a.z <= 0. || b.z <= 0. || c.z <= 0. { return }
@@ -126,6 +129,8 @@ impl Engine {
             ((c.x + 1.) * 0.5 * self.width as f32) as i32,
             ((c.y + 1.) * 0.5 * self.height as f32) as i32,
             c.z,
+            auv, buv, cuv,
+            texture,
             color
         )
     }
@@ -137,6 +142,8 @@ impl Engine {
         ax: i32, ay: i32, az: f32,
         bx: i32, by: i32, bz: f32,
         cx: i32, cy: i32, cz: f32,
+        auv: Vec2, buv: Vec2, cuv: Vec2,
+        texture: &Texture,
         color: [u8;3]
     ) {
         let max_width = self.width as i32 - 1;
@@ -159,8 +166,10 @@ impl Engine {
         if uz.abs() < 1. { return }
 
         let mut i = (miny * self.width as i32) as usize * 4;
+        let mut _i = (miny * self.width as i32) as usize;
         let mut x;
         let line_width = (self.width as i32 - maxx - 1) as usize * 4;
+        let _line_width = (self.width as i32 - maxx - 1) as usize;
         let line_offset = minx as usize * 4;
         let mut btx; let mut bty; let mut btz;
         let mut z;
@@ -169,30 +178,41 @@ impl Engine {
             l2z = ay as f32 - miny as f32;
             x = minx;
             i += line_offset;
+            _i += minx as usize;
             while x <= maxx {
                 l1z = ax as f32 - x as f32;
                 ux = (l1y * l2z) - (l1z * l2y);
                 uy = (l1z * l2x) - (l1x * l2z);
+
                 btx = 1.-(ux+uy)/uz;
+                if btx < 0. { x += 1; i += 4; _i += 1; continue }
+
                 bty = uy/uz;
+                if bty < 0. { x += 1; i += 4; _i += 1; continue }
+
                 btz = ux/uz;
-                if btx < 0. || bty < 0. || btz < 0. {
-                    x += 1;
-                    i += 4;
-                    continue
-                }
+                if btz < 0. { x += 1; i += 4; _i += 1; continue }
+
                 z = (az * btx) + (bz * bty) + (cz * btz);
-                if zbuffer[i] >= z {
-                    pixels[i    ] = color[0];
-                    pixels[i + 1] = color[2];
-                    pixels[i + 2] = color[1];
-                    zbuffer[i] = z;
+                if zbuffer[_i] >= z {
+                    let uv = Vec2::new(
+                        (auv.x * btx) + (buv.x * bty) + (cuv.x * btz),
+                        (auv.y * btx) + (buv.y * bty) + (cuv.y * btz)
+                    ) * texture.size;
+                    let tex_color = texture.pixels[uv.y as usize][uv.x as usize];
+                    pixels[i    ] = tex_color.0;
+                    pixels[i + 1] = tex_color.1;
+                    pixels[i + 2] = tex_color.2;
+                    zbuffer[_i] = z;
                 }
+
                 x += 1;
-                i += 4
+                i += 4;
+                _i += 1;
             }
             miny += 1;
-            i += line_width
+            i += line_width;
+            _i += _line_width
         }
     }
 }
