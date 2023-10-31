@@ -1,0 +1,27 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "A",
+            "command": "cargo run",
+            "type": "shell",
+            "presentation": {
+                "reveal": "always",
+                "clear": true,
+                "panel": "shared"
+            },
+            "group": "build"
+        },
+        {
+            "label": "B",
+            "command": "cargo run --release",
+            "type": "shell",
+            "presentation": {
+                "reveal": "always",
+                "clear": true,
+                "panel": "shared"
+            },
+            "group": "build"
+        }
+    ]
+}
