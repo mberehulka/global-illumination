@@ -1,4 +1,4 @@
-# ray-traced-shadows
+## global-illumination
 Ray traced shadows algorithm in Rust
 
 Work in progress...
