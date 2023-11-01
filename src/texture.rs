@@ -19,10 +19,4 @@ impl Texture {
             pixels
         }
     }
-    pub fn new(width: usize, height: usize, pixel: Vec3) -> Self {
-        Self {
-            size: Vec2::new(width as f32, height as f32),
-            pixels: vec![vec![pixel;width];height]
-        }
-    }
 }

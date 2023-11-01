@@ -1,7 +1,7 @@
-use std::{path::Path, cell::RefCell};
+use std::{path::Path, sync::{Mutex, atomic::AtomicU32}};
 use math::{Vec3, Vec2, Transform};
 
-use crate::texture::Texture;
+use crate::{texture::Texture, gimap::GIMap};
 
 #[derive(Clone, Copy)]
 pub struct Vertex {
@@ -10,18 +10,23 @@ pub struct Vertex {
     pub uv: Vec2
 }
 
-pub struct Object<'s> {
-    pub vertices: Vec<[Vertex;3]>,
-    pub transform: Transform,
-    pub texture: &'s Texture,
-    pub shadow_map: RefCell<Texture>
+pub static ID: AtomicU32 = AtomicU32::new(0);
+
+pub struct Object {
+    pub id: u32,
+    pub triangles: Vec<[Vertex;3]>,
+    pub transform: Mutex<Transform>,
+    pub texture: &'static Texture,
+    pub gimap: GIMap
 }
-impl<'s> Object<'s> {
+impl Object {
     pub fn load(
         path: impl AsRef<Path>,
-        texture: &'s Texture,
+        texture: &'static Texture,
         transform: Transform
     ) -> Self {
+        let id = ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        
         let (gltf, buffers, _) = gltf::import(path).unwrap();
         let meshes = gltf.meshes().collect::<Vec<_>>();
         let primitives = meshes.iter().map(|mesh| mesh.primitives() ).flatten().collect::<Vec<_>>();
@@ -50,7 +55,7 @@ impl<'s> Object<'s> {
             .collect::<Vec<_>>();
 
         let mut index_reader_offset = 0;
-        let vertices = readers.iter()
+        let triangles = readers.iter()
             .zip(readers_sizes)
             .map(|(reader, reader_size)| {
                 let res = reader.read_indices().unwrap().into_u32()
@@ -79,32 +84,16 @@ impl<'s> Object<'s> {
                     uv: uvs[v[2]as usize].into()
                 }
             ])
-            .collect();
+            .collect::<Vec<_>>();
             
-        let shadow_map = Texture::new(texture.size.x as usize / 5, texture.size.y as usize / 5, 0.5.into()).into();
+        let gimap = GIMap::new(id, &texture, &triangles, 1. / 10.).into();
             
         Self {
-            vertices,
+            id,
+            triangles,
             texture,
-            shadow_map,
-            transform
-        }
-    }
-    pub fn update_shadow_map(&self, objects: &[Self]) {
-        let mut shadow_map = self.shadow_map.borrow_mut();
-        let width = shadow_map.size.y as usize;
-        let height = shadow_map.size.x as usize;
-        let mut x;
-        let mut y;
-        for object in objects.iter() {
-            y = 0;
-            while y < height {
-                x = 0;
-                while x < width {
-                    x += 1
-                }
-                y += 1
-            }
+            gimap,
+            transform: transform.into()
         }
     }
 }

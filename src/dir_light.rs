@@ -6,7 +6,7 @@ pub struct DirectionalLight {
 impl Default for DirectionalLight {
     fn default() -> Self {
         Self {
-            direction: Vec3::new(0.1, 0.5, -1.)
+            direction: Vec3::new(0.5, -1., 1.)
         }
     }
 }

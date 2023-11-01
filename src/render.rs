@@ -1,13 +1,13 @@
 use math::{Vec4, Vec2, Vec3};
 
-use crate::{object::Object, texture::Texture, camera::Camera, dir_light::DirectionalLight};
+use crate::{object::Object, texture::Texture, camera::Camera, gimap::GIMap};
 
 #[inline(always)]
 pub fn clear(pixels: &mut [u8]) {
     let l = pixels.len();
     let mut i = 0;
     while i < l {
-        pixels[i] = 0;
+        pixels[i  ] = 0;
         pixels[i+1] = 0;
         pixels[i+2] = 0;
         pixels[i+3] = 255;
@@ -20,21 +20,18 @@ pub fn draw(
     pixels: &mut [u8],
     zbuffer: &mut [f32],
     object: &Object,
-    camera: &Camera,
-    dir_light: &DirectionalLight
+    camera: &Camera
 ) {
-    for [a, b, c] in object.vertices.iter() {
-        let ap = object.transform * a.position;
-        let bp = object.transform * b.position;
-        let cp = object.transform * c.position;
-        let an = (object.transform.rotation * a.normal).normalized();
+    for [a, b, c] in object.triangles.iter() {
+        let transform = object.transform.lock().unwrap().clone();
+
+        let ap = transform * a.position;
+        let bp = transform * b.position;
+        let cp = transform * c.position;
+        let an = (transform.rotation * a.normal).normalized();
         
         if an.dot(camera.position - ap) <= 0. { continue }
 
-        let dp = an.dot(dir_light.direction);
-        
-        let intensity = (1. - dp * 0.75).into();
-        
         project_triangle(
             width, height,
             pixels,
@@ -44,8 +41,7 @@ pub fn draw(
             camera.mat * cp.extend(1.),
             a.uv, b.uv, c.uv,
             object.texture,
-            &*object.shadow_map.borrow(),
-            intensity
+            &object.gimap
         )
     }
 }
@@ -57,15 +53,14 @@ fn project_triangle(
     mut a: Vec4, mut b: Vec4, mut c: Vec4,
     mut auv: Vec2, mut buv: Vec2, mut cuv: Vec2,
     diffuse: &Texture,
-    shadow_map: &Texture,
-    color: Vec3
+    gimap: &GIMap
 ) {
+    if a.w <= 0. || b.w <= 0. || c.w <= 0. { return }
     a.x /= a.w;  a.y /= a.w;  a.z /= a.w;
     b.x /= b.w;  b.y /= b.w;  b.z /= b.w;
     c.x /= c.w;  c.y /= c.w;  c.z /= c.w;
     auv /= a.w;  buv /= b.w;  cuv /= c.w;
     a.w = 1./a.w;  b.w = 1./b.w;  c.w = 1./c.w;
-    if a.w <= 0. || b.w <= 0. || c.w <= 0. { return }
     raster_triangle(
         width, height,
         pixels,
@@ -73,7 +68,7 @@ fn project_triangle(
         ((a.x + 1.) * 0.5 * width as f32) as i32,
         ((a.y + 1.) * 0.5 * height as f32) as i32,
         ((b.x + 1.) * 0.5 * width as f32) as i32,
-        ((b.y + 1.) * 0.5 * height as f32) as i32,
+         ((b.y + 1.) * 0.5 * height as f32) as i32,
         ((c.x + 1.) * 0.5 * width as f32) as i32,
         ((c.y + 1.) * 0.5 * height as f32) as i32,
         Vec3::new(a.z, b.z, c.z),
@@ -81,8 +76,7 @@ fn project_triangle(
         Vec3::new(auv.x, buv.x, cuv.x),
         Vec3::new(auv.y, buv.y, cuv.y),
         diffuse,
-        shadow_map,
-        color
+        gimap
     )
 }
 #[inline(always)]
@@ -98,8 +92,7 @@ fn raster_triangle(
     uvx: Vec3,
     uvy: Vec3,
     diffuse: &Texture,
-    shadow_map: &Texture,
-    color: Vec3
+    gimap: &GIMap
 ) {
     let max_width = width - 1;
     let max_height = height - 1;
@@ -126,7 +119,7 @@ fn raster_triangle(
     let line_width = (max_width - maxx) as usize * 4;
     let _line_width = (max_width - maxx) as usize;
     let line_offset = minx as usize * 4;
-    let sm_size = shadow_map.size - 1.;
+    let sm_size = (gimap.width - 1)as f32;
     let df_size = diffuse.size - 1.;
     let mut baryc = Vec3::default();
     
@@ -155,9 +148,8 @@ fn raster_triangle(
                 let smuv = Vec2::new(uvx.dot(baryc), uvy.dot(baryc)) * sm_size / w;
                 let dfuv = Vec2::new(uvx.dot(baryc), uvy.dot(baryc)) * df_size / w;
                 let tex_color =
-                    shadow_map.pixels[smuv.y as usize][smuv.x as usize] *
                     diffuse.pixels[dfuv.y as usize][dfuv.x as usize] *
-                    color * 255.;
+                    gimap.get_value(smuv.x, smuv.y) * 255.;
                 pixels[i    ] = tex_color.x as u8;
                 pixels[i + 1] = tex_color.y as u8;
                 pixels[i + 2] = tex_color.z as u8;

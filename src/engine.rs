@@ -2,9 +2,9 @@ use winit::{event_loop::EventLoop, window::{WindowBuilder, Window}, dpi::Physica
 use pixels::{Pixels, SurfaceTexture};
 use math::Quaternion;
 
-use crate::{object::Object, camera::Camera, dir_light::DirectionalLight, render::{draw, clear}};
+use crate::{object::Object, camera::Camera, dir_light::DirectionalLight, render::{draw, clear}, text::{render_text, Log}};
 
-pub struct Engine<'s> {
+pub struct Engine {
     pub buff_w4: i32,
 
     pub width: u32,
@@ -13,14 +13,21 @@ pub struct Engine<'s> {
     pub zbuffer: Vec<f32>,
     
     pub window: Window,
-    pub objects: Vec<Object<'s>>,
+    pub objects: &'static [Object],
     pub camera: Camera,
-    pub dir_light: DirectionalLight
+    pub dir_light: &'static DirectionalLight,
+
+    pub logs: Vec<Log>
 }
 
-impl<'s> Engine<'s> {
-    pub fn new(event_loop: &EventLoop<()>) -> Self {
+impl Engine {
+    pub fn new(
+        event_loop: &EventLoop<()>,
+        objects: &'static [Object],
+        logs: Vec<Log>
+    ) -> Self {
         let window = WindowBuilder::new()
+            .with_title("Global illumination")
             .with_resizable(false)
             .with_inner_size(PhysicalSize {
                 width: 800,
@@ -39,18 +46,20 @@ impl<'s> Engine<'s> {
             zbuffer: vec![f32::MAX;(width * height)as usize],
             
             window,
-            objects: vec![],
+            objects,
             camera: Camera::new(),
-            dir_light: DirectionalLight::default()
+            dir_light: Box::leak(Box::new(DirectionalLight::default())),
+
+            logs
         }
     }
-    pub fn rotate_objects(&mut self) {
-        for object in self.objects.iter_mut() {
-            object.transform.rotation = object.transform.rotation * Quaternion::from_angle_y(0.001);
-        }
+    pub fn rotate_object(&mut self) {
+        let object = &self.objects.first().unwrap();
+        let mut transform = object.transform.lock().unwrap();
+        transform.rotation = transform.rotation * Quaternion::from_angle_y(0.001);
     }
     pub fn update(&mut self) {
-        self.rotate_objects();
+        self.rotate_object();
         
         let pixels = self.pixels.frame_mut();
         clear(pixels);
@@ -58,17 +67,21 @@ impl<'s> Engine<'s> {
         
         self.zbuffer.fill(f32::MAX);
         
-        for object_id in 0..self.objects.len() {
-            self.objects[object_id].update_shadow_map(&self.objects);
+        for object in self.objects.iter() {
             draw(
                 self.width as i32, self.height as i32,
                 pixels,
                 &mut self.zbuffer,
-                &self.objects[object_id],
-                &self.camera,
-                &self.dir_light
+                object,
+                &self.camera
             )
         }
+
+        render_text(
+            self.width as usize,
+            pixels,
+            &self.logs.iter().map(|log|log.get()).collect::<Vec<_>>().join("\n")
+        );
 
         self.pixels.render().unwrap()
     }
