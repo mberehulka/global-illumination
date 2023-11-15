@@ -10,3 +10,8 @@ This code runs only in the CPU, for simplicity's sake.
 Keys: A, D, Q, E for rotation and W, S, R, F for translation
 
 Current state: <br>![](./assets/screenshot.png)
+
+### Running:
+```
+cargo run --release
+```

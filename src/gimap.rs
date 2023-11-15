@@ -71,15 +71,15 @@ impl GIMap {
         objects: &[Object],
         dir_light: &DirectionalLight
     ) {
-        let obj = &objects[self.obj_id as usize];
-        let transform = obj.transform.lock().unwrap().clone();
+        let s_object = &objects[self.obj_id as usize];
+        let transform = s_object.transform.lock().unwrap().clone();
         let vertices = self.vertices.lock().unwrap();
         for y in 0..self.height {
             for x in 0..self.width {
                 let vertex = vertices[y][x];
-                let intensity = (
-                    transform.rotation * obj.triangles[vertex.triangle_id as usize][0].normal
-                ).normalized().dot(dir_light.direction);
+                let triangle = &s_object.triangles[vertex.triangle_id as usize][0];
+                let object_normal = (transform.rotation * triangle.normal).normalized();
+                let intensity = object_normal.dot(dir_light.direction);
                 self.set_value(x, y, intensity)
             }
         }
